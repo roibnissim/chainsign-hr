@@ -28,6 +28,9 @@ import {
   saveTemplatePdf,
 } from '../services/templatePdfStorage';
 import { getPdfPageCount } from '../services/pdfUtils';
+import { useFirestore } from '../config/featureFlags';
+import { isFirebaseConfigured } from '../lib/firebase';
+import { removeTemplate, upsertTemplate } from '../services/firestore/hrStore';
 
 interface TemplateManagerProps {
   templates: AgreementTemplate[];
@@ -197,6 +200,11 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({
     }
   };
 
+  const persistTemplateRemote = async (tpl: AgreementTemplate) => {
+    if (!(useFirestore() && isFirebaseConfigured())) return;
+    await upsertTemplate(tpl);
+  };
+
   const handleSave = async () => {
     if (!name.trim()) {
       alert('נא להזין שם לפורמט');
@@ -238,6 +246,7 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({
         pageCount,
         fields,
       };
+      await persistTemplateRemote(tpl);
       if (isEdit) {
         onUpdateTemplate(tpl);
       } else {
@@ -253,14 +262,23 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({
   };
 
   const handleDeleteTemplate = async (tpl: AgreementTemplate) => {
-    if (!window.confirm(`למחוק את הפורמט «${tpl.name}»?`)) return;
+    if (!window.confirm(`למחוק את הפורמט «${tpl.name}»? המחיקה סופית ולא ניתן לשחזר.`)) {
+      return;
+    }
     try {
       await deleteTemplatePdf(tpl.id);
+      if (useFirestore() && isFirebaseConfigured()) {
+        await removeTemplate(tpl.id);
+      }
+      onDeleteTemplate(tpl.id);
+      if (selectedTemplateForDetails?.id === tpl.id) setSelectedTemplateForDetails(null);
+      if (editingId === tpl.id || editingIdRef.current === tpl.id) {
+        closeEditor();
+      }
     } catch (err) {
       console.error(err);
+      alert('מחיקת הפורמט נכשלה. נסה שוב.');
     }
-    onDeleteTemplate(tpl.id);
-    if (selectedTemplateForDetails?.id === tpl.id) setSelectedTemplateForDetails(null);
   };
 
   const fieldSummary = (tpl: AgreementTemplate) => {
