@@ -2,11 +2,10 @@
  * Loads PDF pages as canvas images via pdf.js for template field editing / preview.
  */
 import * as pdfjs from 'pdfjs-dist';
+// Vite emits a hashed /assets URL — stable in production hosting
+import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
-).toString();
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
 export interface RenderedPdfPage {
   pageIndex: number;
