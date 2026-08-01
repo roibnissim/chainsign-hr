@@ -2,10 +2,19 @@
  * Loads PDF pages as canvas images via pdf.js for template field editing / preview.
  */
 import * as pdfjs from 'pdfjs-dist';
-// Vite emits a hashed /assets URL — stable in production hosting
+// Vite emits a hashed /assets URL — must be absolute; relative ./pdf.worker.mjs
+// is rewritten by Hosting to index.html and breaks production preview.
 import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+function resolvePdfWorkerSrc(): string {
+  if (/^https?:\/\//i.test(pdfWorkerSrc)) return pdfWorkerSrc;
+  if (typeof window !== 'undefined') {
+    return new URL(pdfWorkerSrc, window.location.origin).href;
+  }
+  return pdfWorkerSrc;
+}
+
+pdfjs.GlobalWorkerOptions.workerSrc = resolvePdfWorkerSrc();
 
 export interface RenderedPdfPage {
   pageIndex: number;
@@ -35,6 +44,9 @@ export async function renderPdfPages(
     signal?: AbortSignal;
   }
 ): Promise<RenderedPdfPage[]> {
+  // ודא שה-worker מצביע ל-asset האמיתי (לא HTML מ-SPA rewrite)
+  pdfjs.GlobalWorkerOptions.workerSrc = resolvePdfWorkerSrc();
+
   const imageFormat = options?.imageFormat || 'png';
   const jpegQuality = options?.jpegQuality ?? 0.72;
   const data = toStandaloneBytes(pdfBytes);

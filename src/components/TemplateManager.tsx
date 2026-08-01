@@ -74,9 +74,9 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({
   const [sourceFileName, setSourceFileName] = useState('');
   const [pageCount, setPageCount] = useState(0);
   const [fields, setFields] = useState<TemplateField[]>([]);
-  /** epoch לרינדור — הבייטים ב-ref כדי למנוע בעיות עם Uint8Array ב-state */
+  /** epoch לרינדור מחדש של העורך; הבייטים גם ב-state (לתצוגה) וגם ב-ref (לשמירה יציבה) */
   const [pdfEpoch, setPdfEpoch] = useState(0);
-  const [hasPdf, setHasPdf] = useState(false);
+  const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -85,6 +85,7 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({
   const fieldEditorRef = useRef<HTMLDivElement>(null);
   const pdfBytesRef = useRef<Uint8Array | null>(null);
   const editingIdRef = useRef<string | null>(null);
+  const hasPdf = Boolean(pdfBytes && pdfBytes.byteLength > 0);
 
   const categories = ['ALL', ...Array.from(new Set(templates.map((t) => t.category)))];
 
@@ -100,8 +101,9 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({
   });
 
   const setPdfBytesSafe = (bytes: Uint8Array | null) => {
-    pdfBytesRef.current = bytes ? copyPdfBytes(bytes) : null;
-    setHasPdf(Boolean(bytes && bytes.byteLength > 0));
+    const next = bytes && bytes.byteLength > 0 ? copyPdfBytes(bytes) : null;
+    pdfBytesRef.current = next;
+    setPdfBytes(next);
     setPdfEpoch((n) => n + 1);
   };
 
