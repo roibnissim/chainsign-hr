@@ -24,7 +24,7 @@ import {
   X
 } from 'lucide-react';
 import { getDownloadableAgreementPdf, downloadPdfFile } from '../services/agreementPdfDownload';
-import { isAgreementExpiredOrInactive } from '../services/agreementValidity';
+import { isAgreementExpiredOrInactive, isAgreementInForce } from '../services/agreementValidity';
 
 interface DocumentRepositoryProps {
   agreements: SalaryAgreement[];
@@ -83,8 +83,12 @@ export const DocumentRepository: React.FC<DocumentRepositoryProps> = ({
         return false;
       }
 
-      if (filterState.status && filterState.status !== 'ALL' && doc.status !== filterState.status) {
-        return false;
+      if (filterState.status && filterState.status !== 'ALL') {
+        if (filterState.status === 'SIGNED_IN_FORCE') {
+          if (!isAgreementInForce(doc)) return false;
+        } else if (doc.status !== filterState.status) {
+          return false;
+        }
       }
 
       if (filterState.blockchainVerifiedOnly && (!doc.blockchain || doc.status !== 'SIGNED')) {
@@ -223,6 +227,7 @@ export const DocumentRepository: React.FC<DocumentRepositoryProps> = ({
             className={selectClass}
           >
             <option value="ALL">כל הסטטוסים</option>
+            <option value="SIGNED_IN_FORCE">חתומים בתוקף</option>
             <option value="SIGNED">חתומים ומאומתים</option>
             <option value="PENDING_SIGNATURE">ממתינים לחתימה</option>
           </select>

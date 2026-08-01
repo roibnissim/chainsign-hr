@@ -215,7 +215,13 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
   const dateAutoFields = useMemo(
     () =>
       (selectedTemplate?.fields || []).filter((f) =>
-        ['date_day', 'date_month', 'date_year'].includes(f.kind)
+        [
+          'date_day',
+          'date_month',
+          'date_year',
+          'contract_start_date',
+          'contract_end_date',
+        ].includes(f.kind)
       ),
     [selectedTemplate]
   );
@@ -264,7 +270,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
     if (selectedTemplate && !pendingAgreementToSign) {
       setFieldValues((prev) => ({
         ...buildEmployeeFieldValues(selectedTemplate, emp),
-        ...buildAgreementDateFieldValues(selectedTemplate, effectiveDate),
+        ...buildAgreementDateFieldValues(selectedTemplate, effectiveDate, endDate),
         ...Object.fromEntries(
           Object.entries(prev).filter(([id]) => {
             const field = selectedTemplate.fields.find((f) => f.id === id);
@@ -273,7 +279,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
         ),
       }));
     }
-  }, [selectedEmployeeId, selectedTemplate?.id, employees, pendingAgreementToSign, effectiveDate, step4Mode]);
+  }, [selectedEmployeeId, selectedTemplate?.id, employees, pendingAgreementToSign, effectiveDate, endDate, step4Mode]);
 
   // פתיחה מחדש של הסכם ממתין — חידוש/שחזור קישור חתימה
   useEffect(() => {
@@ -404,9 +410,10 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
         employee: selectedEmployee,
         fieldValues: {
           ...fieldValues,
-          ...buildAgreementDateFieldValues(selectedTemplate, effectiveDate),
+          ...buildAgreementDateFieldValues(selectedTemplate, effectiveDate, endDate),
         },
         agreementDate: effectiveDate,
+        endDate,
       });
       if (abort.signal.aborted) return;
 
@@ -481,7 +488,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
       const filled = filledPdfRef.current;
       if (!filled) throw new Error('missing_filled_pdf');
 
-      const dateValues = buildAgreementDateFieldValues(selectedTemplate, effectiveDate);
+      const dateValues = buildAgreementDateFieldValues(selectedTemplate, effectiveDate, endDate);
       const mergedFieldValues = { ...fieldValues, ...dateValues };
       const fileHash = await calculateSHA256(filled);
       const agreementId = pendingAgreementId || pendingAgreementToSign?.id || `doc-${Date.now()}`;
@@ -593,7 +600,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
     setCommitting(true);
     setStep(5);
     try {
-      const dateValues = buildAgreementDateFieldValues(selectedTemplate, effectiveDate);
+      const dateValues = buildAgreementDateFieldValues(selectedTemplate, effectiveDate, endDate);
       const mergedFieldValues = {
         ...(pendingAgreementToSign?.fieldValues || fieldValues),
         ...dateValues,
@@ -618,6 +625,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
         employee: selectedEmployee,
         fieldValues: existingSigned ? {} : mergedFieldValues,
         agreementDate: effectiveDate,
+        endDate,
         signatureImages,
       });
 
@@ -902,7 +910,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
               {selectedTemplate && dateAutoFields.length > 0 && (
                 <div className="bg-sky-50 rounded-2xl p-4 border border-sky-100 text-xs space-y-1">
                   <p className="font-bold text-slate-800 mb-2">
-                    יושלם אוטומטית מתאריך התחלת החוזה (ביום / לחודש / שנת):
+                    יושלם אוטומטית מתאריכי החוזה באשף:
                   </p>
                   {dateAutoFields.map((f) => (
                     <div key={f.id} className="flex justify-between gap-2">

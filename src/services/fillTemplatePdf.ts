@@ -10,6 +10,7 @@ import {
   formatAgreementDateDay,
   formatAgreementDateMonth,
   formatAgreementDateYear,
+  formatContractDateDisplay,
 } from './agreementDateFields';
 
 function valueForField(
@@ -17,7 +18,8 @@ function valueForField(
   employee: Employee | null | undefined,
   fieldValues: Record<string, string>,
   allFields: TemplateField[] = [],
-  agreementDateIso?: string
+  agreementDateIso?: string,
+  endDateIso?: string
 ): string {
   if (field.kind === 'signature') return '';
 
@@ -46,6 +48,15 @@ function valueForField(
       return formatAgreementDateMonth(iso, field.monthFormat || 'hebrew');
     }
     return formatAgreementDateYear(iso);
+  }
+
+  if (field.kind === 'contract_start_date' || field.kind === 'contract_end_date') {
+    if (fieldValues[field.id] != null && fieldValues[field.id] !== '') {
+      return fieldValues[field.id];
+    }
+    const iso =
+      field.kind === 'contract_start_date' ? agreementDateIso || '' : endDateIso || '';
+    return iso ? formatContractDateDisplay(iso) : '';
   }
 
   if (fieldValues[field.id] != null && fieldValues[field.id] !== '') {
@@ -128,8 +139,10 @@ export interface FillTemplateOptions {
   sourcePdfBytes: Uint8Array;
   employee?: Employee | null;
   fieldValues: Record<string, string>;
-  /** ISO date (YYYY-MM-DD) for date_day / date_month / date_year fields */
+  /** ISO date (YYYY-MM-DD) — תאריך התחלת החוזה + שדות ביום/לחודש/שנת */
   agreementDate?: string;
+  /** ISO date (YYYY-MM-DD) — תאריך סיום החוזה */
+  endDate?: string;
   signatureImages?: Record<string, string>;
   fieldSignatures?: FieldSignature[];
 }
@@ -141,6 +154,7 @@ export async function fillTemplatePdf(options: FillTemplateOptions): Promise<Uin
     employee,
     fieldValues,
     agreementDate,
+    endDate,
     signatureImages = {},
   } = options;
 
@@ -169,7 +183,8 @@ export async function fillTemplatePdf(options: FillTemplateOptions): Promise<Uin
       employee,
       fieldValues,
       template.fields,
-      agreementDate
+      agreementDate,
+      endDate
     );
     if (!raw) continue;
     const fontSize = field.fontSize || Math.max(8, Math.min(14, field.height * 0.55));
@@ -276,10 +291,11 @@ export function buildEmployeeFieldValues(
   return values;
 }
 
-/** Auto-fill date_day / date_month / date_year from an ISO agreement date. */
+/** Auto-fill date fields from contract start/end ISO dates. */
 export function buildAgreementDateFieldValues(
   template: AgreementTemplate,
-  agreementDateIso: string
+  agreementDateIso: string,
+  endDateIso?: string
 ): Record<string, string> {
   const values: Record<string, string> = {};
   for (const field of template.fields) {
@@ -292,6 +308,10 @@ export function buildAgreementDateFieldValues(
       );
     } else if (field.kind === 'date_year') {
       values[field.id] = formatAgreementDateYear(agreementDateIso);
+    } else if (field.kind === 'contract_start_date') {
+      values[field.id] = formatContractDateDisplay(agreementDateIso);
+    } else if (field.kind === 'contract_end_date') {
+      values[field.id] = formatContractDateDisplay(endDateIso || '');
     }
   }
   return values;
@@ -316,6 +336,7 @@ export async function resolveAgreementPdfBytes(
     fieldSignatures?: FieldSignature[];
     signature?: { signatureImageBase64?: string };
     effectiveDate?: string;
+    endDate?: string;
   },
   template: AgreementTemplate | null | undefined,
   employee: Employee | null | undefined,
@@ -353,6 +374,7 @@ export async function resolveAgreementPdfBytes(
       employee,
       fieldValues: agreement.fieldValues || {},
       agreementDate: agreement.effectiveDate,
+      endDate: agreement.endDate,
       signatureImages,
       fieldSignatures: agreement.fieldSignatures,
     });

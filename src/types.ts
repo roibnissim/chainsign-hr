@@ -177,6 +177,8 @@ export type TemplateFieldKind =
   | 'date_day'
   | 'date_month'
   | 'date_year'
+  | 'contract_start_date'
+  | 'contract_end_date'
   | 'text'
   | 'signature';
 
@@ -234,6 +236,8 @@ export const TEMPLATE_FIELD_KIND_LABELS: Record<TemplateFieldKind, string> = {
   date_day: 'יום בחודש (תאריך הסכם)',
   date_month: 'חודש (תאריך הסכם)',
   date_year: 'שנה (תאריך הסכם)',
+  contract_start_date: 'תאריך התחלת החוזה',
+  contract_end_date: 'תאריך סיום החוזה',
   text: 'טקסט חופשי',
   signature: 'מקום חתימה',
 };

@@ -45,6 +45,15 @@ export function formatAgreementDateYear(iso: string): string {
   return String(d.getFullYear());
 }
 
+/** תצוגת תאריך מלא לחוזה: DD/MM/YYYY */
+export function formatContractDateDisplay(iso: string): string {
+  const d = parseIsoDate(iso);
+  if (!d) return '';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${day}/${month}/${d.getFullYear()}`;
+}
+
 export type AgreementDatePart = 'day' | 'month' | 'year';
 
 export function formatAgreementDatePart(

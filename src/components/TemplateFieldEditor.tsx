@@ -30,6 +30,8 @@ const KIND_OPTIONS: TemplateFieldKind[] = [
   'date_day',
   'date_month',
   'date_year',
+  'contract_start_date',
+  'contract_end_date',
   'text',
   'signature',
 ];
@@ -212,13 +214,17 @@ export const TemplateFieldEditor: React.FC<TemplateFieldEditorProps> = ({
             : `חתימת מועדון ${countSame}`
                   : activeKind === 'salary_words'
                     ? `סכום במילים ${countSame}`
-                    : activeKind === 'date_day'
-                      ? `יום בחודש ${countSame}`
-                      : activeKind === 'date_month'
-                        ? `חודש ${countSame}`
-                        : activeKind === 'date_year'
-                          ? `שנה ${countSame}`
-                          : `${labelBase} ${countSame}`,
+                  : activeKind === 'date_day'
+                    ? `יום בחודש ${countSame}`
+                    : activeKind === 'date_month'
+                      ? `חודש ${countSame}`
+                      : activeKind === 'date_year'
+                        ? `שנה ${countSame}`
+                        : activeKind === 'contract_start_date'
+                          ? `תאריך התחלה ${countSame}`
+                          : activeKind === 'contract_end_date'
+                            ? `תאריך סיום ${countSame}`
+                            : `${labelBase} ${countSame}`,
       pageIndex,
       ...pdfRect,
       fontSize: activeKind === 'signature' ? undefined : 11,
@@ -330,7 +336,17 @@ export const TemplateFieldEditor: React.FC<TemplateFieldEditorProps> = ({
               <p className="text-[11px] font-bold text-slate-600">תאריך עריכת ההסכם</p>
               <p className="text-[10px] text-slate-500 leading-relaxed">
                 סמן את הריק המתאים בשורה «ביום ____ לחודש _______ שנת _______».
-                הערך יתמלא אוטומטית מתאריך ההסכם באשף (יום / חודש בעברית / שנה).
+                הערך יתמלא אוטומטית מתאריך התחלת החוזה באשף (יום / חודש בעברית / שנה).
+              </p>
+            </div>
+          )}
+          {(activeKind === 'contract_start_date' || activeKind === 'contract_end_date') && (
+            <div className="pt-2 border-t border-slate-200 space-y-1.5">
+              <p className="text-[11px] font-bold text-slate-600">תקופת החוזה</p>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                {activeKind === 'contract_start_date'
+                  ? 'יתמלא אוטומטית מתאריך התחלת החוזה שהמנהל מזין באשף החתימה (DD/MM/YYYY).'
+                  : 'יתמלא אוטומטית מתאריך סיום החוזה שהמנהל מזין באשף החתימה (DD/MM/YYYY).'}
               </p>
             </div>
           )}
@@ -516,7 +532,9 @@ export const TemplateFieldEditor: React.FC<TemplateFieldEditorProps> = ({
                   const isDate =
                     f.kind === 'date_day' ||
                     f.kind === 'date_month' ||
-                    f.kind === 'date_year';
+                    f.kind === 'date_year' ||
+                    f.kind === 'contract_start_date' ||
+                    f.kind === 'contract_end_date';
                   return (
                     <div
                       key={f.id}
@@ -530,6 +548,8 @@ export const TemplateFieldEditor: React.FC<TemplateFieldEditorProps> = ({
                           ? 'border-violet-500 bg-violet-500/20 text-violet-900'
                           : isWords
                             ? 'border-amber-500 bg-amber-500/20 text-amber-900'
+                            : f.kind === 'contract_start_date' || f.kind === 'contract_end_date'
+                              ? 'border-teal-600 bg-teal-500/20 text-teal-950'
                             : isDate
                               ? 'border-sky-500 bg-sky-500/20 text-sky-900'
                               : 'border-emerald-500 bg-emerald-500/20 text-emerald-900'
