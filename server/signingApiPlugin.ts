@@ -216,7 +216,7 @@ export async function signingApiMiddleware(
               sendJson(res, 400, { error: 'no_phone', message: 'לא הוגדר טלפון לעובד' });
               return;
             }
-            const otp = createOrRefreshOtp({
+            const otp = await createOrRefreshOtp({
               phone,
               purpose: 'employee_sign',
               ref: token,
@@ -270,7 +270,7 @@ export async function signingApiMiddleware(
             }
             const raw = await readHttpBody(req);
             const body = JSON.parse(raw || '{}');
-            const result = verifyOtp({
+            const result = await verifyOtp({
               phone,
               purpose: 'employee_sign',
               code: String(body.code || '').trim(),

@@ -120,7 +120,7 @@ export async function authApiMiddleware(
               return;
             }
 
-            if (!canRequestManagerOtp(phone)) {
+            if (!(await canRequestManagerOtp(phone))) {
               sendJson(res as ServerResponse, 403, {
                 error: 'not_registered',
                 message:
@@ -129,7 +129,7 @@ export async function authApiMiddleware(
               return;
             }
 
-            const otp = createOrRefreshOtp({ phone, purpose: 'manager_login' });
+            const otp = await createOrRefreshOtp({ phone, purpose: 'manager_login' });
             if ('error' in otp) {
               if (otp.error === 'cooldown') {
                 sendJson(res as ServerResponse, 429, {
@@ -189,7 +189,7 @@ export async function authApiMiddleware(
               return;
             }
 
-            const result = verifyOtp({ phone, purpose: 'manager_login', code });
+            const result = await verifyOtp({ phone, purpose: 'manager_login', code });
             if (result.ok === false) {
               const messages: Record<string, string> = {
                 invalid_code: 'קוד שגוי',
@@ -205,7 +205,7 @@ export async function authApiMiddleware(
               return;
             }
 
-            const user = upsertSmsUser({ phone: result.phone });
+            const user = await upsertSmsUser({ phone: result.phone });
             if (!user) {
               sendJson(res as ServerResponse, 403, {
                 error: 'not_registered',

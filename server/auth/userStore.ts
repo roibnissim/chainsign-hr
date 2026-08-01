@@ -173,16 +173,51 @@ export async function resolveGoogleManager(params: {
   return upsertGoogleUser(params);
 }
 
-export function upsertSmsUser(params: {
+export async function upsertSmsUser(params: {
   phone: string;
-}): AuthUser | null {
-  const store = ensureStore();
+}): Promise<AuthUser | null> {
   const phone = params.phone;
-  const existing = getUserByPhone(phone);
   const now = new Date().toISOString();
 
+  if (isFirebaseAdminReady()) {
+    try {
+      ensureFirebaseAdmin();
+      const { getFirestore } = await import('firebase-admin/firestore');
+      const col = getFirestore().collection('clubs').doc(getClubIdServer()).collection('users');
+      const snap = await col.get();
+      const profile = snap.docs.find((d) => {
+        const p = String(d.data().phone || '').replace(/\D/g, '');
+        let pl = p;
+        if (pl.startsWith('972')) pl = `0${pl.slice(3)}`;
+        if (pl.length === 9 && pl.startsWith('5')) pl = `0${pl}`;
+        return pl === phone;
+      });
+      if (profile) {
+        const data = profile.data();
+        const role = data.role === 'SYSTEM_ADMIN' ? 'SYSTEM_ADMIN' : 'MANAGER';
+        const user: AuthUser = {
+          id: profile.id,
+          googleSub: String(data.googleSub || `sms:${phone}`),
+          email: String(data.email || `${phone}@sms.local`),
+          name: String(data.name || `מנהל ${phone.slice(-4)}`),
+          picture: data.picture as string | undefined,
+          phone,
+          role,
+          createdAt: String(data.createdAt || now),
+          lastLoginAt: now,
+        };
+        await col.doc(profile.id).set({ phone, lastLoginAt: now }, { merge: true });
+        return user;
+      }
+    } catch (err) {
+      console.warn('[userStore] firestore sms lookup failed', err);
+    }
+  }
+
+  const store = ensureStore();
+  const existing = getUserByPhone(phone);
+
   if (existing) {
-    // התחברות OTP לא דורסת שם / אימייל — רק טלפון מנורמל וזמן כניסה
     const updated: AuthUser = {
       ...existing,
       phone,
@@ -211,13 +246,51 @@ export function upsertSmsUser(params: {
   };
   store[id] = created;
   saveStore(store);
+
+  if (isFirebaseAdminReady()) {
+    try {
+      ensureFirebaseAdmin();
+      const { getFirestore } = await import('firebase-admin/firestore');
+      await getFirestore()
+        .collection('clubs')
+        .doc(getClubIdServer())
+        .collection('users')
+        .doc(id)
+        .set(created, { merge: true });
+    } catch (err) {
+      console.warn('[userStore] firestore sms bootstrap write failed', err);
+    }
+  }
+
   return created;
 }
 
 /** האם מותר לשלוח OTP התחברות מנהל למספר זה */
-export function canRequestManagerOtp(phone: string): boolean {
+export async function canRequestManagerOtp(phone: string): Promise<boolean> {
   if (getUserByPhone(phone)) return true;
   if (adminPhonesFromEnv().has(phone)) return true;
+
+  if (isFirebaseAdminReady()) {
+    try {
+      ensureFirebaseAdmin();
+      const { getFirestore } = await import('firebase-admin/firestore');
+      const snap = await getFirestore()
+        .collection('clubs')
+        .doc(getClubIdServer())
+        .collection('users')
+        .get();
+      return snap.docs.some((d) => {
+        const p = String(d.data().phone || '').replace(/\D/g, '');
+        let pl = p;
+        if (pl.startsWith('972')) pl = `0${pl.slice(3)}`;
+        if (pl.length === 9 && pl.startsWith('5')) pl = `0${pl}`;
+        return pl === phone;
+      });
+    } catch (err) {
+      console.warn('[userStore] firestore otp allow check failed', err);
+    }
+  }
+
   return false;
 }
 

@@ -364,7 +364,7 @@ export async function onboardingApiMiddleware(
               return;
             }
 
-            const otp = createOrRefreshOtp({
+            const otp = await createOrRefreshOtp({
               phone,
               purpose: 'employee_onboard',
               ref: token,
@@ -421,7 +421,7 @@ export async function onboardingApiMiddleware(
             const raw = await readHttpBody(req);
             const body = JSON.parse(raw || '{}');
             const code = String(body.code || '').trim();
-            const result = verifyOtp({
+            const result = await verifyOtp({
               phone,
               purpose: 'employee_onboard',
               code,

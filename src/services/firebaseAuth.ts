@@ -116,6 +116,10 @@ export async function firebaseLoginWithGoogle(idToken: string): Promise<AuthUser
   return mapped;
 }
 
+/**
+ * SMS OTP דרך /api (Cloud Function `api`) — אותו נתיב לשליחה ולאימות,
+ * עם אחסון ב־Firestore. לא משתמשים ב־callable + fallback (שגרם ל־not_found בפרודקשן).
+ */
 export async function firebaseRequestSmsOtp(phone: string): Promise<{
   phone: string;
   expiresInSec: number;
@@ -123,48 +127,25 @@ export async function firebaseRequestSmsOtp(phone: string): Promise<{
   testCode?: string;
   message?: string;
 }> {
-  try {
-    const fn = httpsCallable<{ phone: string }, {
-      phone: string;
-      expiresInSec: number;
-      testMode?: boolean;
-      testCode?: string;
-      message?: string;
-    }>(getFirebaseFunctions(), 'requestManagerOtp');
-    const res = await fn({ phone });
-    return res.data;
-  } catch {
-    const res = await fetch('/api/auth/sms/request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || data.error || 'sms_request_failed');
-    return data;
-  }
+  const res = await fetch('/api/auth/sms/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || data.error || 'sms_request_failed');
+  return data;
 }
 
 export async function firebaseVerifySmsOtp(phone: string, code: string): Promise<AuthUser> {
-  let customToken: string | undefined;
-  try {
-    const fn = httpsCallable<{ phone: string; code: string }, { customToken: string; user: AuthUser }>(
-      getFirebaseFunctions(),
-      'verifyManagerOtp'
-    );
-    const res = await fn({ phone, code });
-    customToken = res.data.customToken;
-  } catch {
-    const res = await fetch('/api/auth/sms/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, code, firebase: true }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || data.error || 'sms_verify_failed');
-    customToken = data.customToken || data.token;
-  }
-
+  const res = await fetch('/api/auth/sms/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone, code, firebase: true }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || data.error || 'sms_verify_failed');
+  const customToken = data.customToken || data.token;
   if (!customToken) throw new Error('firebase_custom_token_missing');
   await signInWithCustomToken(getFirebaseAuth(), customToken);
   const mapped = await mapFirebaseUser(getFirebaseAuth().currentUser!);
