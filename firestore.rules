@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function tokenClub() {
+      return request.auth.token.clubId;
+    }
+
+    function tokenRole() {
+      return request.auth.token.role;
+    }
+
+    // clubId must be passed — path wildcards are not in scope for top-level functions
+    function isManager(clubId) {
+      return signedIn()
+        && tokenRole() in ['SYSTEM_ADMIN', 'MANAGER']
+        && tokenClub() == clubId;
+    }
+
+    function isAdmin(clubId) {
+      return signedIn()
+        && tokenRole() == 'SYSTEM_ADMIN'
+        && tokenClub() == clubId;
+    }
+
+    function isOnboardFor(clubId, employeeId) {
+      return signedIn()
+        && request.auth.token.purpose == 'onboard'
+        && request.auth.token.clubId == clubId
+        && request.auth.token.employeeId == employeeId;
+    }
+
+    match /clubs/{clubId} {
+      allow read: if isManager(clubId);
+      allow write: if isAdmin(clubId);
+
+      match /users/{uid} {
+        allow read: if isManager(clubId);
+        allow create, update, delete: if isAdmin(clubId);
+        // פרופיל עצמי — יצירה/עדכון בלוגין (lastLogin)
+        allow create, update: if signedIn()
+          && request.auth.uid == uid
+          && isManager(clubId);
+      }
+
+      match /employees/{employeeId} {
+        allow read: if isManager(clubId) || isOnboardFor(clubId, employeeId);
+        allow write: if isManager(clubId);
+
+        match /{document=**} {
+          allow read, write: if isManager(clubId);
+        }
+      }
+
+      match /agreements/{id} {
+        allow read, write: if isManager(clubId);
+      }
+
+      match /fileDocuments/{id} {
+        allow read: if isManager(clubId)
+          || (isOnboardFor(clubId, resource.data.employeeId));
+        allow create: if isManager(clubId)
+          || (isOnboardFor(clubId, request.resource.data.employeeId));
+        allow update, delete: if isManager(clubId);
+      }
+
+      match /templates/{id} {
+        allow read, write: if isManager(clubId);
+      }
+
+      match /activityEvents/{id} {
+        allow read, write: if isManager(clubId);
+      }
+
+      match /invites/{token} {
+        // גישה רק דרך Admin SDK (API שרת) — לא מהלקוח
+        allow read, write: if false;
+      }
+
+      match /uploadRequests/{token} {
+        allow read, write: if false;
+      }
+
+      match /signingInvites/{token} {
+        allow read, write: if false;
+      }
+
+      match /otp/{id} {
+        allow read, write: if false;
+      }
+    }
+  }
+}

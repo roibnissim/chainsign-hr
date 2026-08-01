@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Club logo placeholder">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00A3E0"/>
+      <stop offset="100%" stop-color="#0066A1"/>
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="96" fill="url(#g)" stroke="#fff" stroke-width="6"/>
+  <circle cx="100" cy="100" r="78" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2"/>
+  <path d="M100 42c-18 0-32 14-32 32 0 12 6 22 16 28l-6 36h44l-6-36c10-6 16-16 16-28 0-18-14-32-32-32z" fill="#fff"/>
+  <circle cx="100" cy="148" r="14" fill="#2ECC71" stroke="#fff" stroke-width="3"/>
+  <text x="100" y="178" text-anchor="middle" font-family="Arial,sans-serif" font-size="14" font-weight="700" fill="#fff">ASA</text>
+</svg>

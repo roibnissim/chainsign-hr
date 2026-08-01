@@ -1,0 +1,6 @@
+{
+  "name": "אימות חתימות שכר בבלוקצ'יין",
+  "description": "מערכת ניהול ואימות חתימות על הסכמי שכר ב-PDF עם הוכחות בלוקצ'יין, תיוג עובדים ותפקידים, ותצוגה דאשבורד מהירה",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

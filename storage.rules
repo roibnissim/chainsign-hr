@@ -1,0 +1,53 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isManagerFor(clubId) {
+      return signedIn()
+        && request.auth.token.clubId == clubId
+        && request.auth.token.role in ['SYSTEM_ADMIN', 'MANAGER'];
+    }
+
+    function isOnboardEmployee(clubId, employeeId) {
+      return signedIn()
+        && request.auth.token.purpose == 'onboard'
+        && request.auth.token.clubId == clubId
+        && request.auth.token.employeeId == employeeId;
+    }
+
+    function under10mb() {
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+
+    match /clubs/{clubId}/branding/{fileName} {
+      allow read: if isManagerFor(clubId);
+      allow write: if isManagerFor(clubId) && under10mb();
+    }
+
+    match /clubs/{clubId}/templates/{fileName} {
+      allow read: if isManagerFor(clubId);
+      allow write: if isManagerFor(clubId) && under10mb();
+    }
+
+    match /clubs/{clubId}/agreements/{fileName} {
+      allow read: if isManagerFor(clubId);
+      allow write: if isManagerFor(clubId) && under10mb();
+    }
+
+    match /clubs/{clubId}/employees/{employeeId}/{allPaths=**} {
+      allow read: if isManagerFor(clubId) || isOnboardEmployee(clubId, employeeId);
+      allow write: if (isManagerFor(clubId) || isOnboardEmployee(clubId, employeeId))
+        && under10mb();
+    }
+
+    match /clubs/{clubId}/users/{uid}/{allPaths=**} {
+      allow read: if isManagerFor(clubId);
+      allow write: if isManagerFor(clubId)
+        && request.auth.uid == uid
+        && under10mb();
+    }
+  }
+}
