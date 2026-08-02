@@ -15,11 +15,31 @@ const HEBREW_MONTHS = [
   'דצמבר',
 ];
 
-export function parseIsoDate(iso: string): Date | null {
-  if (!iso) return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso.trim());
+export function parseIsoDate(iso: unknown): Date | null {
+  if (iso == null || iso === '') return null;
+  if (iso instanceof Date) {
+    return Number.isNaN(iso.getTime()) ? null : iso;
+  }
+  if (typeof iso === 'object') {
+    const maybeTs = iso as { toDate?: () => Date; seconds?: number };
+    if (typeof maybeTs.toDate === 'function') {
+      try {
+        const d = maybeTs.toDate();
+        return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null;
+      } catch {
+        return null;
+      }
+    }
+    if (typeof maybeTs.seconds === 'number') {
+      const d = new Date(maybeTs.seconds * 1000);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+  }
+  const raw = String(iso).trim();
+  if (!raw) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
   if (!m) {
-    const d = new Date(iso);
+    const d = new Date(raw);
     return Number.isNaN(d.getTime()) ? null : d;
   }
   const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));

@@ -49,7 +49,8 @@ interface ContractSignerWizardProps {
   onCancel: () => void;
 }
 
-type WizardStep = 1 | 2 | 3 | 4 | 5;
+/** 1 עובד → 2 פורמט/תאריכים → 3 שדות → 4 תצוגה → 5 שליחה/חתימה → 6 הצלחה */
+type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
 function typedSignatureToDataUrl(text: string): string {
   const canvas = document.createElement('canvas');
@@ -84,10 +85,11 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
   );
 
   const [step, setStep] = useState<WizardStep>(() => {
-    if (pendingAgreementToSign) return 4;
+    // פתיחה מהארכיון — ישר לשליחה / חתימת מועדון
+    if (pendingAgreementToSign) return 5;
     return 1;
   });
-  /** שלב 4: שליחת קישור לעובד / חתימת מועדון / המתנה */
+  /** שלב 5: שליחת קישור לעובד / חתימת מועדון / המתנה */
   const [step4Mode, setStep4Mode] = useState<'sendLink' | 'clubSign' | 'waiting'>(() => {
     if (pendingAgreementToSign && employeeAlreadySigned) return 'clubSign';
     if (pendingAgreementToSign && pendingAgreementToSign.status === 'PENDING_SIGNATURE') {
@@ -100,12 +102,6 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
   const [pendingAgreementId, setPendingAgreementId] = useState<string | null>(
     pendingAgreementToSign?.id || null
   );
-  const [sharePhone, setSharePhone] = useState(
-    () =>
-      employees.find((e) => e.id === pendingAgreementToSign?.employeeId)?.phone ||
-      employees[0]?.phone ||
-      ''
-  );
   const [selectedTemplateId, setSelectedTemplateId] = useState(
     initialTemplate?.id || pendingAgreementToSign?.templateId || pdfTemplates[0]?.id || ''
   );
@@ -117,8 +113,9 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
     [pdfTemplates, templates, selectedTemplateId]
   );
 
+  /** בלי בחירת ברירת מחדל — המנהל חייב לבחור עובד במפורש (חוץ מפתיחה מהארכיון) */
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(
-    pendingAgreementToSign?.employeeId || employees[0]?.id || ''
+    pendingAgreementToSign?.employeeId || ''
   );
   const [selectedRole, setSelectedRole] = useState<RoleType>(
     pendingAgreementToSign?.role ||
@@ -195,6 +192,8 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const selectedEmployee = employees.find((e) => e.id === selectedEmployeeId) || null;
+  /** טלפון לשליחת וואטסאפ — תמיד מכרטיס העובד, לא ניתן לעריכה */
+  const employeePhone = selectedEmployee?.phone || '';
 
   const fillableFields = useMemo(
     () =>
@@ -266,7 +265,6 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
       setSignerEmail(emp.email);
     }
     if (!pendingAgreementToSign) setSelectedRole(emp.role);
-    setSharePhone((prev) => prev || emp.phone || '');
     if (selectedTemplate && !pendingAgreementToSign) {
       setFieldValues((prev) => ({
         ...buildEmployeeFieldValues(selectedTemplate, emp),
@@ -283,7 +281,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
 
   // פתיחה מחדש של הסכם ממתין — חידוש/שחזור קישור חתימה
   useEffect(() => {
-    if (step !== 4 || step4Mode === 'clubSign' || signLink || !selectedEmployee) return;
+    if (step !== 5 || step4Mode === 'clubSign' || signLink || !selectedEmployee) return;
     const agreementId = pendingAgreementId || pendingAgreementToSign?.id;
     if (!agreementId || employeeAlreadySigned) return;
     let cancelled = false;
@@ -293,7 +291,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
           agreementId,
           employeeId: selectedEmployee.id,
           employeeName: selectedEmployee.name,
-          phone: sharePhone || selectedEmployee.phone,
+          phone: employeePhone || selectedEmployee.phone,
           docNumber: pendingAgreementToSign?.docNumber || title,
           title,
         });
@@ -307,7 +305,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [step, step4Mode, pendingAgreementId, pendingAgreementToSign?.id, selectedEmployee?.id]);
+  }, [step, step4Mode, pendingAgreementId, pendingAgreementToSign?.id, selectedEmployee?.id, employeePhone]);
 
   useEffect(() => {
     if (selectedTemplate) {
@@ -390,7 +388,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
     setPreviewReady(false);
     filledPdfRef.current = null;
     revokePreviewUrl();
-    setStep(3);
+    setStep(4);
 
     try {
       const source = await getTemplatePdf(selectedTemplate.id);
@@ -476,7 +474,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
         setSigPhase('club');
         setStep4Mode('clubSign');
         setSignerName('נציג המועדון');
-        setStep(4);
+        setStep(5);
       } else {
         void finalizeAgreement({});
       }
@@ -539,15 +537,14 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
         agreementId,
         employeeId: selectedEmployee.id,
         employeeName: selectedEmployee.name,
-        phone: sharePhone || selectedEmployee.phone,
+        phone: employeePhone || selectedEmployee.phone,
         docNumber,
         title,
       });
       const absolute = `${window.location.origin}${invite.signPath}`;
       setSignLink(absolute);
-      setSharePhone(sharePhone || selectedEmployee.phone || '');
       setStep4Mode('sendLink');
-      setStep(4);
+      setStep(5);
     } catch (err) {
       console.error(err);
       alert('יצירת הסכם ממתין לחתימה נכשלה. ודא שהשרת רץ ושיש טלפון לעובד.');
@@ -598,7 +595,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
     }
     if (!validateContractDates()) return;
     setCommitting(true);
-    setStep(5);
+    setStep(6);
     try {
       const dateValues = buildAgreementDateFieldValues(selectedTemplate, effectiveDate, endDate);
       const mergedFieldValues = {
@@ -720,7 +717,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
     } catch (err) {
       console.error(err);
       alert('שגיאה בשמירת ההסכם החתום');
-      setStep(4);
+      setStep(5);
     } finally {
       setCommitting(false);
     }
@@ -728,10 +725,16 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
 
   const datesValid =
     Boolean(effectiveDate && endDate) && endDate >= effectiveDate;
-  const canProceedStep1 = Boolean(selectedTemplateId && selectedEmployeeId && datesValid);
+  const canProceedStep1 = Boolean(selectedEmployeeId);
+  const canProceedStep2 = Boolean(selectedTemplateId && selectedEmployeeId && datesValid);
   const missingSalary = fillableFields.some(
     (f) => f.kind === 'salary' && !String(fieldValues[f.id] || '').trim()
   );
+
+  const backBtnClass =
+    'px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs flex items-center';
+  const nextBtnClass =
+    'px-5 py-2.5 text-white font-bold rounded-xl text-sm disabled:opacity-40 flex items-center';
 
   return (
     <div className="max-w-4xl mx-auto my-6 space-y-4">
@@ -742,7 +745,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
             ? `חתימה על הסכם: ${pendingAgreementToSign.docNumber}`
             : 'מילוי והחתמת הסכם מפורמט PDF'
         }
-        subtitle="בחירת פורמט מעורך הדין → השלמת שדות → חתימה בכל המיקומים (כולל נספחים)"
+        subtitle="בחירת עובד → פורמט PDF → מילוי שדות → תצוגה מקדימה → שליחה לחתימה"
         action={
           <button
             onClick={onCancel}
@@ -755,8 +758,8 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
 
       <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xl overflow-hidden">
         <div className="px-6 sm:px-8 pt-5">
-          <div className="grid grid-cols-4 gap-2">
-            {[1, 2, 3, 4].map((s) => (
+          <div className="grid grid-cols-5 gap-2">
+            {[1, 2, 3, 4, 5].map((s) => (
               <div
                 key={s}
                 className={`h-1.5 rounded-full transition-all ${step >= s ? '' : 'bg-slate-200'}`}
@@ -771,7 +774,69 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
             <div className="space-y-5">
               <h3 className="font-bold text-slate-900 text-base flex items-center border-b border-slate-100 pb-2">
                 <UserCheck className="w-5 h-5 ml-2 text-[var(--brand)]" />
-                שלב 1: פורמט PDF ועובד
+                שלב 1: בחירת עובד
+              </h3>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">עובד</label>
+                <select
+                  value={selectedEmployeeId}
+                  onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                  className={fieldClass}
+                >
+                  <option value="">בחר עובד...</option>
+                  {employees.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name} · {e.idNumber} · {e.role}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedEmployee && (
+                <div className="bg-[var(--brand-light)] rounded-2xl p-4 border border-slate-200 text-xs space-y-1">
+                  <p className="font-bold text-slate-800 mb-2">פרטי העובד שנבחר:</p>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500">שם</span>
+                    <span className="font-semibold text-slate-800">{selectedEmployee.name}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500">ת.ז.</span>
+                    <span className="font-semibold text-slate-800">{selectedEmployee.idNumber}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500">טלפון</span>
+                    <span className="font-semibold text-slate-800 dir-ltr">
+                      {selectedEmployee.phone || '—'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between pt-2">
+                <button type="button" onClick={onCancel} className={backBtnClass}>
+                  <ArrowRight className="w-4 h-4 ml-1.5" />
+                  חזרה
+                </button>
+                <button
+                  type="button"
+                  disabled={!canProceedStep1}
+                  onClick={() => setStep(2)}
+                  className={nextBtnClass}
+                  style={{ backgroundColor: 'var(--brand)' }}
+                >
+                  הבא
+                  <ArrowLeft className="w-4 h-4 mr-1.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-5">
+              <h3 className="font-bold text-slate-900 text-base flex items-center border-b border-slate-100 pb-2">
+                <Layers className="w-5 h-5 ml-2 text-[var(--brand)]" />
+                שלב 2: פורמט PDF ותקופת החוזה
               </h3>
 
               {pdfTemplates.length === 0 ? (
@@ -797,21 +862,6 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
                   </select>
                 </div>
               )}
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">עובד</label>
-                <select
-                  value={selectedEmployeeId}
-                  onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                  className={fieldClass}
-                >
-                  {employees.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name} · {e.idNumber} · {e.role}
-                    </option>
-                  ))}
-                </select>
-              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
@@ -923,12 +973,16 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
                 </div>
               )}
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-between pt-2">
+                <button type="button" onClick={() => setStep(1)} className={backBtnClass}>
+                  <ArrowRight className="w-4 h-4 ml-1.5" />
+                  חזרה
+                </button>
                 <button
                   type="button"
-                  disabled={!canProceedStep1}
-                  onClick={() => setStep(2)}
-                  className="px-5 py-2.5 text-white font-bold rounded-xl text-sm disabled:opacity-40 flex items-center"
+                  disabled={!canProceedStep2}
+                  onClick={() => setStep(3)}
+                  className={nextBtnClass}
                   style={{ backgroundColor: 'var(--brand)' }}
                 >
                   המשך למילוי שדות
@@ -938,11 +992,11 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
             </div>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <div className="space-y-5">
               <h3 className="font-bold text-slate-900 text-base flex items-center border-b border-slate-100 pb-2">
                 <DollarSign className="w-5 h-5 ml-2 text-[var(--brand)]" />
-                שלב 2: השלמת סכומי שכר ושדות נוספים
+                שלב 3: השלמת סכומי שכר ושדות נוספים
               </h3>
 
               {fillableFields.length === 0 ? (
@@ -1012,11 +1066,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
               )}
 
               <div className="flex justify-between pt-2">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs flex items-center"
-                >
+                <button type="button" onClick={() => setStep(2)} className={backBtnClass}>
                   <ArrowRight className="w-4 h-4 ml-1.5" />
                   חזרה
                 </button>
@@ -1024,7 +1074,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
                   type="button"
                   disabled={missingSalary}
                   onClick={() => void goToPreview()}
-                  className="px-5 py-2.5 text-white font-bold rounded-xl text-sm disabled:opacity-40 flex items-center"
+                  className={nextBtnClass}
                   style={{ backgroundColor: 'var(--brand)' }}
                 >
                   תצוגה מקדימה
@@ -1037,11 +1087,11 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div className="space-y-5">
               <h3 className="font-bold text-slate-900 text-base flex items-center border-b border-slate-100 pb-2">
                 <FileText className="w-5 h-5 ml-2 text-[var(--brand)]" />
-                שלב 3: תצוגה מקדימה של המסמך הממולא
+                שלב 4: תצוגה מקדימה של המסמך הממולא
               </h3>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs flex flex-wrap gap-x-6 gap-y-1">
                 <span>
@@ -1081,9 +1131,9 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
                   onClick={() => {
                     previewAbortRef.current?.abort();
                     revokePreviewUrl();
-                    setStep(2);
+                    setStep(3);
                   }}
-                  className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs flex items-center"
+                  className={backBtnClass}
                 >
                   <ArrowRight className="w-4 h-4 ml-1.5" />
                   חזרה
@@ -1092,7 +1142,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
                   type="button"
                   disabled={!previewReady || signLinkBusy}
                   onClick={() => void startSigning()}
-                  className="px-5 py-2.5 text-white font-bold rounded-xl text-sm flex items-center disabled:opacity-40"
+                  className={nextBtnClass}
                   style={{ backgroundColor: 'var(--brand)' }}
                 >
                   {signLinkBusy
@@ -1110,11 +1160,11 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
             </div>
           )}
 
-          {step === 4 && step4Mode !== 'clubSign' && (
+          {step === 5 && step4Mode !== 'clubSign' && (
             <div className="space-y-5">
               <h3 className="font-bold text-slate-900 text-base flex items-center border-b border-slate-100 pb-2">
                 <MessageCircle className="w-5 h-5 ml-2 text-[var(--brand)]" />
-                שלב 4: שליחה לחתימת עובד
+                שלב 5: שליחה לחתימת עובד
               </h3>
 
               <div className="bg-sky-50 border border-sky-100 rounded-2xl px-4 py-4 text-sm text-sky-950 space-y-2">
@@ -1125,15 +1175,21 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
               </div>
 
               <label className="block text-xs font-bold text-slate-600 space-y-1">
-                טלפון לשליחה (וואטסאפ)
+                טלפון לשליחה (וואטסאפ) — מכרטיס העובד
                 <input
-                  className={fieldClass}
-                  value={sharePhone}
-                  onChange={(e) => setSharePhone(e.target.value)}
-                  placeholder="05xxxxxxxx"
+                  className={`${fieldClass} bg-slate-50 text-slate-700 cursor-not-allowed`}
+                  value={employeePhone}
+                  readOnly
+                  disabled
+                  placeholder="לא הוגדר טלפון לעובד"
                   dir="ltr"
                 />
               </label>
+              {!employeePhone && (
+                <p className="text-xs font-bold text-rose-600">
+                  לעובד אין מספר טלפון בתיק — עדכנו את כרטיס העובד לפני שליחה בוואטסאפ.
+                </p>
+              )}
 
               {signLink ? (
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-[11px] font-mono text-slate-600 break-all dir-ltr text-left">
@@ -1146,9 +1202,9 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
               <div className="flex flex-col sm:flex-row gap-2">
                 <a
                   href={
-                    signLink && selectedEmployee
+                    signLink && selectedEmployee && employeePhone
                       ? buildSigningWhatsAppUrl(
-                          sharePhone || selectedEmployee.phone || '',
+                          employeePhone,
                           selectedEmployee.name,
                           signLink,
                           title
@@ -1158,14 +1214,14 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
                   target="_blank"
                   rel="noreferrer"
                   onClick={(e) => {
-                    if (!signLink || !selectedEmployee) {
+                    if (!signLink || !selectedEmployee || !employeePhone) {
                       e.preventDefault();
                       return;
                     }
                     setStep4Mode('waiting');
                   }}
                   className={`flex-1 px-4 py-3 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 ${
-                    signLink ? '' : 'pointer-events-none opacity-40'
+                    signLink && employeePhone ? '' : 'pointer-events-none opacity-40'
                   }`}
                   style={{ backgroundColor: '#25D366' }}
                 >
@@ -1193,12 +1249,13 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
               </div>
 
               <div className="flex justify-between pt-2">
-                {!pendingAgreementToSign && (
-                  <button
-                    type="button"
-                    onClick={() => setStep(3)}
-                    className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs flex items-center"
-                  >
+                {!pendingAgreementToSign ? (
+                  <button type="button" onClick={() => setStep(4)} className={backBtnClass}>
+                    <ArrowRight className="w-4 h-4 ml-1.5" />
+                    חזרה
+                  </button>
+                ) : (
+                  <button type="button" onClick={onCancel} className={backBtnClass}>
                     <ArrowRight className="w-4 h-4 ml-1.5" />
                     חזרה
                   </button>
@@ -1206,7 +1263,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
                 <button
                   type="button"
                   onClick={onCancel}
-                  className="mr-auto px-5 py-2.5 text-white font-bold rounded-xl text-sm"
+                  className="px-5 py-2.5 text-white font-bold rounded-xl text-sm"
                   style={{ backgroundColor: 'var(--brand)' }}
                 >
                   יציאה מהאשף
@@ -1215,11 +1272,11 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
             </div>
           )}
 
-          {step === 4 && step4Mode === 'clubSign' && (
+          {step === 5 && step4Mode === 'clubSign' && (
             <div className="space-y-5">
               <h3 className="font-bold text-slate-900 text-base flex items-center border-b border-slate-100 pb-2">
                 <PenTool className="w-5 h-5 ml-2 text-[var(--brand)]" />
-                שלב 4: חתימת מועדון
+                שלב 5: חתימת מועדון
                 {activeSigField && (
                   <span className="mr-2 text-xs font-bold text-slate-500">
                     — {activeSigField.label}
@@ -1324,18 +1381,15 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
               )}
 
               <div className="flex justify-between pt-2">
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs"
-                >
-                  ביטול
+                <button type="button" onClick={onCancel} className={backBtnClass}>
+                  <ArrowRight className="w-4 h-4 ml-1.5" />
+                  חזרה
                 </button>
                 <button
                   type="button"
                   disabled={committing}
                   onClick={() => void acceptCurrentSignature()}
-                  className="px-5 py-2.5 text-white font-bold rounded-xl text-sm flex items-center"
+                  className={nextBtnClass}
                   style={{ backgroundColor: 'var(--brand)' }}
                 >
                   <CheckCircle2 className="w-4 h-4 ml-1.5" />
@@ -1347,7 +1401,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
             </div>
           )}
 
-          {step === 5 && (
+          {step === 6 && (
             <div className="py-16 text-center space-y-3">
               <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
               <p className="font-extrabold text-slate-900 text-lg">

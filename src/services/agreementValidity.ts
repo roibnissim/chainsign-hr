@@ -8,10 +8,36 @@ export function todayDateIso(d = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
-function dateOnly(iso: string | undefined): string | null {
-  if (!iso) return null;
-  const m = /^(\d{4}-\d{2}-\d{2})/.exec(iso.trim());
-  return m ? m[1] : null;
+/** מנרמל תאריך מ־string / Date / Firestore Timestamp ל־YYYY-MM-DD */
+function dateOnly(value: unknown): string | null {
+  if (value == null || value === '') return null;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : todayDateIso(value);
+  }
+
+  if (typeof value === 'object') {
+    const maybeTs = value as { toDate?: () => Date; seconds?: number };
+    if (typeof maybeTs.toDate === 'function') {
+      try {
+        const d = maybeTs.toDate();
+        return d instanceof Date && !Number.isNaN(d.getTime()) ? todayDateIso(d) : null;
+      } catch {
+        return null;
+      }
+    }
+    if (typeof maybeTs.seconds === 'number') {
+      const d = new Date(maybeTs.seconds * 1000);
+      return Number.isNaN(d.getTime()) ? null : todayDateIso(d);
+    }
+  }
+
+  const s = String(value).trim();
+  if (!s) return null;
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+  if (m) return m[1];
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : todayDateIso(d);
 }
 
 /**
