@@ -291,6 +291,7 @@ function ManagerApp() {
             <DashboardStats
               agreements={agreements}
               employees={employees}
+              templates={templates}
               clubName={branding.clubName}
               onFilterStatus={(status) => {
                 setFilterState(prev => ({ ...prev, status }));

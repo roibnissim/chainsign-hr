@@ -184,11 +184,12 @@ export function useHrPersistence(params: {
 
   const shouldWrite = (key: EchoKey): boolean => {
     if (!firestoreOn) return false;
-    if (persistMeta.current.skipRemoteWrite) return false;
+    // תמיד מנקים echo גם בזמן skip — אחרת כתיבה מאוחרת עלולה לדרוס נתוני שרת
     if (persistMeta.current.echo[key]) {
       persistMeta.current.echo[key] = false;
       return false;
     }
+    if (persistMeta.current.skipRemoteWrite) return false;
     return true;
   };
 

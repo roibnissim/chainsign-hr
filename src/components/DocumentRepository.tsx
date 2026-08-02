@@ -420,11 +420,15 @@ export const DocumentRepository: React.FC<DocumentRepositoryProps> = ({
                             ממתין לחתימה
                           </div>
                         )}
-                        {isAgreementExpiredOrInactive(doc) && (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                            לא פעיל
-                          </span>
-                        )}
+                      {isAgreementInForce(doc) ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          פעיל
+                        </span>
+                      ) : isAgreementExpiredOrInactive(doc) ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-xl text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                          לא פעיל
+                        </span>
+                      ) : null}
                       </div>
                     </td>
 
@@ -506,11 +510,15 @@ export const DocumentRepository: React.FC<DocumentRepositoryProps> = ({
                           ממתין
                         </span>
                       )}
-                      {isAgreementExpiredOrInactive(doc) && (
+                      {isAgreementInForce(doc) ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          פעיל
+                        </span>
+                      ) : isAgreementExpiredOrInactive(doc) ? (
                         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                           לא פעיל
                         </span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 
