@@ -160,6 +160,10 @@ export async function upsertAgreements(agreements: SalaryAgreement[]): Promise<v
   await Promise.all(agreements.map((a) => upsertAgreement(a)));
 }
 
+export async function removeAgreement(id: string): Promise<void> {
+  await deleteDoc(clubDoc('agreements', id));
+}
+
 export async function listFileDocuments(): Promise<EmployeeFileDocument[]> {
   const snap = await getDocs(clubCol('fileDocuments'));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as EmployeeFileDocument));
@@ -189,6 +193,13 @@ export async function upsertFileDocuments(docs: EmployeeFileDocument[]): Promise
 
 export async function removeFileDocument(id: string): Promise<void> {
   await deleteDoc(clubDoc('fileDocuments', id));
+}
+
+export async function listActivityEvents(): Promise<ManagerActivityEvent[]> {
+  const snap = await getDocs(clubCol('activityEvents'));
+  const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ManagerActivityEvent));
+  rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return rows;
 }
 
 export async function upsertActivityEvent(event: ManagerActivityEvent): Promise<void> {

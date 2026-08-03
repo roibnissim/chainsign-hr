@@ -32,6 +32,7 @@ import type {
   SalaryAgreement,
 } from '../types';
 import {
+  subscribeActivityEvents,
   subscribeAgreements,
   subscribeBranding,
   subscribeEmployees,
@@ -46,7 +47,6 @@ import {
   saveRolesRemote,
 } from './firestore/hrStore';
 import { isFirebaseConfigured } from '../lib/firebase';
-import { subscribeActivityEventsViaApi } from './activityLogStore';
 import { clearLocalHrStorage } from './migrateLocal';
 
 type Setters = {
@@ -160,7 +160,7 @@ export function useHrPersistence(params: {
       subscribeRoles((remote) => {
         if (remote) fromRemote('roles', () => setRoles(remote));
       }),
-      subscribeActivityEventsViaApi((rows) => {
+      subscribeActivityEvents((rows) => {
         setActivityEvents(dedupeActivityEvents(rows));
       }),
     ];

@@ -30,7 +30,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({
   const totalCount = agreements.length;
   const signedCount = agreements.filter((a) => a.status === 'SIGNED').length;
   const pendingCount = agreements.filter((a) => a.status === 'PENDING_SIGNATURE').length;
-  const activeAgreements = agreements.filter(isAgreementInForce);
+  const activeAgreements = agreements.filter((a) => isAgreementInForce(a));
   const totalMonthlyPayroll = activeAgreements.reduce(
     (acc, curr) => acc + resolveAgreementMonthlySalary(curr, templates),
     0

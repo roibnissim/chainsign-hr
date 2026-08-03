@@ -38,7 +38,6 @@ import {
 import {
   archiveActivityEventRemote,
   persistActivityEvent,
-  purgeActivityLogCompletely,
 } from './services/activityLogStore';
 import { deleteEmployeeFileDocument } from './services/deleteEmployeeDocument';
 import {
@@ -119,17 +118,6 @@ function ManagerApp() {
     setRoles,
     setActivityEvents,
   });
-
-  // איפוס חד־פעמי של לוג ישן; מקור האמת מעתה Firestore בלבד
-  useEffect(() => {
-    if (!user) return;
-    void (async () => {
-      const purged = await purgeActivityLogCompletely(false);
-      if (purged) {
-        setActivityEvents([]);
-      }
-    })();
-  }, [user]);
 
   const openEmployeeFileSection = (employeeId: string, fileSection: string) => {
     try {
@@ -317,6 +305,11 @@ function ManagerApp() {
             onOpenSignerModal={(agreement) => {
               setPendingAgreementToSign(agreement);
               setActiveTab('signer');
+            }}
+            onDeleteAgreement={(agreementId) => {
+              setAgreements((prev) => prev.filter((a) => a.id !== agreementId));
+              setViewingAgreement((prev) => (prev?.id === agreementId ? null : prev));
+              setPendingAgreementToSign((prev) => (prev?.id === agreementId ? null : prev));
             }}
           />
         )}

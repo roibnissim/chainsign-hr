@@ -46,14 +46,43 @@ export const UsersPermissions: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const list = await authListUsers();
+      let list = await authListUsers();
+      // ניקוי כפילויות ישנות: אותו טלפון עם רשומת @sms.local מול אימייל אמיתי
+      if (isAdmin) {
+        const normPhone = (p?: string) => {
+          let pl = String(p || '').replace(/\D/g, '');
+          if (pl.startsWith('972')) pl = `0${pl.slice(3)}`;
+          if (pl.length === 9 && pl.startsWith('5')) pl = `0${pl}`;
+          return pl;
+        };
+        const isSynthetic = (email: string) =>
+          email.trim().toLowerCase().endsWith('@sms.local');
+        const realPhones = new Set(
+          list
+            .filter((u) => !isSynthetic(u.email) && normPhone(u.phone))
+            .map((u) => normPhone(u.phone))
+        );
+        const dupes = list.filter(
+          (u) => isSynthetic(u.email) && realPhones.has(normPhone(u.phone))
+        );
+        for (const d of dupes) {
+          try {
+            await authDeleteUser(d.id);
+          } catch (err) {
+            console.warn('cleanup duplicate user failed', d.id, err);
+          }
+        }
+        if (dupes.length) {
+          list = await authListUsers();
+        }
+      }
       setUsers(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'שגיאה בטעינת משתמשים');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     void load();

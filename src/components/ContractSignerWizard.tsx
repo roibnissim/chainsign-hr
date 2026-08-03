@@ -102,8 +102,9 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
   const [pendingAgreementId, setPendingAgreementId] = useState<string | null>(
     pendingAgreementToSign?.id || null
   );
+  /** בלי בחירת ברירת מחדל — המנהל חייב לבחור פורמט (חוץ מפתיחה מפורמטים/ארכיון) */
   const [selectedTemplateId, setSelectedTemplateId] = useState(
-    initialTemplate?.id || pendingAgreementToSign?.templateId || pdfTemplates[0]?.id || ''
+    initialTemplate?.id || pendingAgreementToSign?.templateId || ''
   );
   const selectedTemplate = useMemo(
     () =>
@@ -854,6 +855,7 @@ export const ContractSignerWizard: React.FC<ContractSignerWizardProps> = ({
                     onChange={(e) => setSelectedTemplateId(e.target.value)}
                     className={fieldClass}
                   >
+                    <option value="">בחר הסכם...</option>
                     {pdfTemplates.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name} ({t.pageCount} עמ׳ · {t.fields.length} שדות)

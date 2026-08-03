@@ -48,11 +48,15 @@ export function isAgreementInForce(
   agreement: Pick<SalaryAgreement, 'status' | 'effectiveDate' | 'endDate'>,
   onDate: string = todayDateIso()
 ): boolean {
-  if (agreement.status !== 'SIGNED') return false;
+  if (String(agreement.status || '').trim() !== 'SIGNED') return false;
   const start = dateOnly(agreement.effectiveDate);
   const end = dateOnly(agreement.endDate);
   if (!start || !end) return false;
-  const day = dateOnly(onDate) || onDate;
+  // Array.filter מעביר index כארגומנט שני — מתעלמים מערכים שאינם תאריך
+  const day =
+    typeof onDate === 'string' && onDate
+      ? dateOnly(onDate) || onDate
+      : todayDateIso();
   return start <= day && day <= end;
 }
 

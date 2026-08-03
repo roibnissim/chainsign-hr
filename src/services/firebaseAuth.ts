@@ -161,7 +161,7 @@ export async function firebaseLogout(): Promise<void> {
 export async function firebaseListUsers(): Promise<AuthUser[]> {
   const col = collection(getFirebaseFirestore(), 'clubs', getClubId(), 'users');
   const snap = await getDocs(col);
-  return snap.docs.map((d) => {
+  const rows = snap.docs.map((d) => {
     const data = d.data();
     return {
       id: d.id,
@@ -176,8 +176,39 @@ export async function firebaseListUsers(): Promise<AuthUser[]> {
       role: (data.role as SystemRole) || 'MANAGER',
       createdAt: String(data.createdAt || ''),
       lastLoginAt: String(data.lastLoginAt || ''),
-    };
+    } satisfies AuthUser;
   });
+
+  // הגנה מפני כפילויות ישנות (SMS + Google לאותו אדם)
+  const normPhone = (p?: string) => {
+    let pl = String(p || '').replace(/\D/g, '');
+    if (pl.startsWith('972')) pl = `0${pl.slice(3)}`;
+    if (pl.length === 9 && pl.startsWith('5')) pl = `0${pl}`;
+    return pl;
+  };
+  const isSynthetic = (email: string) => email.trim().toLowerCase().endsWith('@sms.local');
+  const byKey = new Map<string, AuthUser>();
+  for (const u of rows) {
+    const phoneKey = normPhone(u.phone);
+    const emailKey = u.email.trim().toLowerCase();
+    const key = phoneKey
+      ? `p:${phoneKey}`
+      : emailKey && !isSynthetic(emailKey)
+        ? `e:${emailKey}`
+        : `id:${u.id}`;
+    const prev = byKey.get(key);
+    if (!prev) {
+      byKey.set(key, u);
+      continue;
+    }
+    // מעדיפים רשומה עם אימייל אמיתי / lastLogin חדש יותר
+    const prevScore =
+      (isSynthetic(prev.email) ? 0 : 2) + (prev.lastLoginAt > u.lastLoginAt ? 1 : 0);
+    const nextScore =
+      (isSynthetic(u.email) ? 0 : 2) + (u.lastLoginAt >= prev.lastLoginAt ? 1 : 0);
+    byKey.set(key, nextScore >= prevScore ? u : prev);
+  }
+  return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name, 'he'));
 }
 
 export async function firebaseCreateUser(params: {

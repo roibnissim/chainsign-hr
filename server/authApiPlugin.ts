@@ -227,7 +227,9 @@ export async function authApiMiddleware(
                   createManagerCustomToken,
                   getClubIdServer,
                   isFirebaseAdminReady,
-                  upsertAuthUserByPhone,
+                  isSyntheticSmsEmail,
+                  resolveManagerFirebaseUser,
+                  writeCanonicalClubUser,
                 } = await import('./auth/firebaseAdmin');
                 if (!isFirebaseAdminReady()) {
                   sendJson(res as ServerResponse, 503, {
@@ -237,19 +239,40 @@ export async function authApiMiddleware(
                   });
                   return;
                 }
-                const fbUser = await upsertAuthUserByPhone({
-                  phone: user.phone || result.phone,
+                const phone = user.phone || result.phone;
+                const fbUser = await resolveManagerFirebaseUser({
+                  phone,
+                  email: user.email,
                   name: user.name,
+                  picture: user.picture,
+                });
+                const profileEmail =
+                  user.email && !isSyntheticSmsEmail(user.email)
+                    ? user.email
+                    : fbUser.email || `${phone}@sms.local`;
+                await writeCanonicalClubUser({
+                  uid: fbUser.uid,
+                  email: profileEmail,
+                  name: user.name,
+                  role: user.role,
+                  phone,
+                  picture: user.picture || null,
+                  createdAt: user.createdAt,
                 });
                 const customToken = await createManagerCustomToken(fbUser.uid, {
                   role: user.role,
                   clubId: getClubIdServer(),
-                  phone: user.phone || result.phone,
+                  phone,
                 });
                 sendJson(res as ServerResponse, 200, {
                   customToken,
                   token: customToken,
-                  user: toPublicUser({ ...user, id: fbUser.uid }),
+                  user: toPublicUser({
+                    ...user,
+                    id: fbUser.uid,
+                    email: profileEmail,
+                    phone,
+                  }),
                 });
                 return;
               } catch (err) {
@@ -324,7 +347,8 @@ export async function authApiMiddleware(
                 createManagerCustomToken,
                 getClubIdServer,
                 isFirebaseAdminReady,
-                upsertAuthUserByEmail,
+                resolveManagerFirebaseUser,
+                writeCanonicalClubUser,
               } = await import('./auth/firebaseAdmin');
               if (!isFirebaseAdminReady()) {
                 sendJson(res as ServerResponse, 503, {
@@ -334,10 +358,20 @@ export async function authApiMiddleware(
                 });
                 return;
               }
-              const fbUser = await upsertAuthUserByEmail({
+              const fbUser = await resolveManagerFirebaseUser({
                 email: user.email,
+                phone: user.phone,
                 name: user.name,
                 picture: user.picture,
+              });
+              await writeCanonicalClubUser({
+                uid: fbUser.uid,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                phone: user.phone || null,
+                picture: user.picture || null,
+                createdAt: user.createdAt,
               });
               // Custom token — works with any Google OAuth client (no Firebase IdP audience check)
               const customToken = await createManagerCustomToken(fbUser.uid, {
@@ -345,29 +379,6 @@ export async function authApiMiddleware(
                 clubId: getClubIdServer(),
                 phone: user.phone,
               });
-              try {
-                const { getFirestore } = await import('firebase-admin/firestore');
-                await getFirestore()
-                  .collection('clubs')
-                  .doc(getClubIdServer())
-                  .collection('users')
-                  .doc(fbUser.uid)
-                  .set(
-                    {
-                      id: fbUser.uid,
-                      email: user.email,
-                      name: user.name,
-                      picture: user.picture || null,
-                      phone: user.phone || null,
-                      role: user.role,
-                      lastLoginAt: new Date().toISOString(),
-                      createdAt: user.createdAt,
-                    },
-                    { merge: true }
-                  );
-              } catch (err) {
-                console.warn('[auth] profile merge failed', err);
-              }
               sendJson(res as ServerResponse, 200, {
                 customToken,
                 user: toPublicUser({ ...user, id: fbUser.uid }),

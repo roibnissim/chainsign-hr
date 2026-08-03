@@ -21,10 +21,15 @@ import {
   PenTool,
   Grid,
   List,
-  X
+  X,
+  Trash2,
 } from 'lucide-react';
 import { getDownloadableAgreementPdf, downloadPdfFile } from '../services/agreementPdfDownload';
 import { isAgreementExpiredOrInactive, isAgreementInForce } from '../services/agreementValidity';
+import { deleteAgreementPdf } from '../services/templatePdfStorage';
+import { removeAgreement } from '../services/firestore/hrStore';
+import { useFirestore } from '../config/featureFlags';
+import { isFirebaseConfigured } from '../lib/firebase';
 
 interface DocumentRepositoryProps {
   agreements: SalaryAgreement[];
@@ -35,6 +40,12 @@ interface DocumentRepositoryProps {
   setFilterState: React.Dispatch<React.SetStateAction<FilterState>>;
   onOpenViewer: (agreement: SalaryAgreement) => void;
   onOpenSignerModal: (agreement: SalaryAgreement) => void;
+  onDeleteAgreement: (agreementId: string) => void;
+}
+
+/** הסכמים חתומים ומאושרים לא ניתנים למחיקה מהארכיון */
+function canDeleteUnsignedAgreement(doc: SalaryAgreement): boolean {
+  return doc.status !== 'SIGNED';
 }
 
 const emptyFilters: FilterState = {
@@ -54,10 +65,12 @@ export const DocumentRepository: React.FC<DocumentRepositoryProps> = ({
   filterState,
   setFilterState,
   onOpenViewer,
-  onOpenSignerModal
+  onOpenSignerModal,
+  onDeleteAgreement,
 }) => {
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const filteredAgreements = useMemo(() => {
     return agreements.filter(doc => {
@@ -118,6 +131,32 @@ export const DocumentRepository: React.FC<DocumentRepositoryProps> = ({
       alert('אירעה שגיאה בייצור קובץ ה-PDF להורדה.');
     } finally {
       setDownloadingId(null);
+    }
+  };
+
+  const handleDeleteAgreement = async (agreement: SalaryAgreement) => {
+    if (!canDeleteUnsignedAgreement(agreement)) return;
+    if (
+      !window.confirm(
+        `למחוק את ההסכם «${agreement.title}» (${agreement.docNumber})?\nהמחיקה סופית — ההסכם עדיין לא נחתם ואושר.`
+      )
+    ) {
+      return;
+    }
+    try {
+      setDeletingId(agreement.id);
+      await deleteAgreementPdf(agreement.id).catch((err) => {
+        console.warn('deleteAgreementPdf', err);
+      });
+      if (useFirestore() && isFirebaseConfigured()) {
+        await removeAgreement(agreement.id);
+      }
+      onDeleteAgreement(agreement.id);
+    } catch (err) {
+      console.error(err);
+      alert('מחיקת ההסכם נכשלה. נסה שוב.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -472,6 +511,19 @@ export const DocumentRepository: React.FC<DocumentRepositoryProps> = ({
                               : 'המשך חתימה'}
                           </button>
                         )}
+
+                        {canDeleteUnsignedAgreement(doc) && (
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteAgreement(doc)}
+                            disabled={deletingId === doc.id}
+                            className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl font-bold text-xs transition-colors flex items-center border border-rose-200 disabled:opacity-50"
+                            title="מחק הסכם שלא נחתם"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 ml-1" />
+                            {deletingId === doc.id ? 'מוחק...' : 'מחק'}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -565,11 +617,11 @@ export const DocumentRepository: React.FC<DocumentRepositoryProps> = ({
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
+                <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => onOpenViewer(doc)}
-                    className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center border border-slate-200"
+                    className="flex-1 min-w-[5.5rem] py-2 bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold rounded-xl text-xs transition-colors flex items-center justify-center border border-slate-200"
                   >
                     <Eye className="w-3.5 h-3.5 ml-1" />
                     צפה
@@ -578,12 +630,23 @@ export const DocumentRepository: React.FC<DocumentRepositoryProps> = ({
                     type="button"
                     onClick={() => handleFastDownload(doc)}
                     disabled={downloadingId === doc.id}
-                    className="flex-1 py-2 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center shadow-sm disabled:opacity-50"
+                    className="flex-1 min-w-[5.5rem] py-2 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center shadow-sm disabled:opacity-50"
                     style={{ backgroundColor: 'var(--brand)' }}
                   >
                     <Download className="w-3.5 h-3.5 ml-1" />
                     {downloadingId === doc.id ? 'מוריד...' : 'הורד PDF'}
                   </button>
+                  {canDeleteUnsignedAgreement(doc) && (
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteAgreement(doc)}
+                      disabled={deletingId === doc.id}
+                      className="flex-1 min-w-[5.5rem] py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center border border-rose-200 disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 ml-1" />
+                      {deletingId === doc.id ? 'מוחק...' : 'מחק'}
+                    </button>
+                  )}
                 </div>
               </div>
             );

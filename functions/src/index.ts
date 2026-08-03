@@ -140,33 +140,92 @@ export const verifyManagerOtp = onCall({ region: 'europe-west1' }, async (reques
     }
   }
 
-  const email = `${phone}@sms.local`;
+  const profileData = profile?.data() || {};
+  const role = (profileData.role as SystemRole) || 'SYSTEM_ADMIN';
+  const name = String(profileData.name || `מנהל ${phone.slice(-4)}`);
+  const realEmail = String(profileData.email || '').trim().toLowerCase();
+  const useEmail = realEmail && !realEmail.endsWith('@sms.local') ? realEmail : '';
+
   let fbUser;
-  try {
-    fbUser = await getAuth().getUserByEmail(email);
-  } catch {
-    fbUser = await getAuth().createUser({
-      email,
-      displayName: profile?.data()?.name || `מנהל ${phone.slice(-4)}`,
-      phoneNumber: `+972${phone.slice(1)}`,
-    });
+  if (useEmail) {
+    try {
+      fbUser = await getAuth().getUserByEmail(useEmail);
+    } catch {
+      fbUser = await getAuth().createUser({
+        email: useEmail,
+        displayName: name,
+        emailVerified: true,
+        phoneNumber: `+972${phone.slice(1)}`,
+      });
+    }
+  } else {
+    const email = `${phone}@sms.local`;
+    try {
+      fbUser = await getAuth().getUserByEmail(email);
+    } catch {
+      fbUser = await getAuth().createUser({
+        email,
+        displayName: name,
+        phoneNumber: `+972${phone.slice(1)}`,
+      });
+    }
   }
 
-  const role = (profile?.data()?.role as SystemRole) || 'SYSTEM_ADMIN';
-  const name = String(profile?.data()?.name || fbUser.displayName || `מנהל ${phone.slice(-4)}`);
+  const e164 = `+972${phone.slice(1)}`;
+  if (fbUser.phoneNumber !== e164) {
+    try {
+      fbUser = await getAuth().updateUser(fbUser.uid, { phoneNumber: e164 });
+    } catch {
+      try {
+        const other = await getAuth().getUserByPhoneNumber(e164);
+        if (other.uid !== fbUser.uid) {
+          await getAuth().updateUser(other.uid, { phoneNumber: null });
+          fbUser = await getAuth().updateUser(fbUser.uid, { phoneNumber: e164 });
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   await getAuth().setCustomUserClaims(fbUser.uid, { role, clubId: clubId(), phone });
 
   const now = new Date().toISOString();
+  const profileEmail = useEmail || `${phone}@sms.local`;
   const userDoc = {
     id: fbUser.uid,
-    email,
+    email: profileEmail,
     name,
     phone,
     role,
-    createdAt: profile?.data()?.createdAt || now,
+    picture: profileData.picture || null,
+    createdAt: profileData.createdAt || now,
     lastLoginAt: now,
   };
   await usersCol.doc(fbUser.uid).set(userDoc, { merge: true });
+
+  // מחיקת כפילויות SMS/אימייל
+  for (const d of usersSnap.docs) {
+    if (d.id === fbUser.uid) continue;
+    const data = d.data();
+    const p = String(data.phone || '').replace(/\D/g, '');
+    let pl = p;
+    if (pl.startsWith('972')) pl = `0${pl.slice(3)}`;
+    const samePhone = pl === phone;
+    const sameEmail =
+      Boolean(profileEmail) &&
+      String(data.email || '')
+        .trim()
+        .toLowerCase() === profileEmail;
+    const synthetic =
+      String(data.email || '')
+        .trim()
+        .toLowerCase()
+        .endsWith('@sms.local');
+    if (sameEmail || (samePhone && synthetic)) {
+      await d.ref.delete().catch(() => undefined);
+    }
+  }
 
   const customToken = await getAuth().createCustomToken(fbUser.uid, {
     role,

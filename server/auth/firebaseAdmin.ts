@@ -217,3 +217,129 @@ export async function upsertAuthUserByPhone(params: {
     }
   }
 }
+
+export function isSyntheticSmsEmail(email: string | undefined | null): boolean {
+  return String(email || '')
+    .trim()
+    .toLowerCase()
+    .endsWith('@sms.local');
+}
+
+export function toE164Israeli(phone: string): string | undefined {
+  const digits = phone.replace(/\D/g, '');
+  let local = digits;
+  if (local.startsWith('972')) local = `0${local.slice(3)}`;
+  if (local.length === 9 && local.startsWith('5')) local = `0${local}`;
+  if (!/^05\d{8}$/.test(local)) return undefined;
+  return `+972${local.slice(1)}`;
+}
+
+/**
+ * בוחר Firebase Auth אחד למשתמש מנהל:
+ * אם יש אימייל אמיתי — משתמשים בו (Google / ידני),
+ * אחרת נופלים ל־phone@sms.local.
+ * מונע כפילות כשאותו אדם מתחבר גם בגוגל וגם ב־SMS.
+ */
+export async function resolveManagerFirebaseUser(params: {
+  name: string;
+  email?: string;
+  phone?: string;
+  picture?: string;
+}): Promise<UserRecord> {
+  const email = (params.email || '').trim().toLowerCase();
+  const phone = (params.phone || '').trim();
+  const auth = adminAuth();
+
+  let user: UserRecord;
+  if (email && !isSyntheticSmsEmail(email)) {
+    user = await upsertAuthUserByEmail({
+      email,
+      name: params.name,
+      picture: params.picture,
+    });
+  } else if (phone) {
+    user = await upsertAuthUserByPhone({ phone, name: params.name });
+  } else {
+    throw new Error('missing_contact_for_auth_user');
+  }
+
+  const e164 = phone ? toE164Israeli(phone) : undefined;
+  if (e164 && user.phoneNumber !== e164) {
+    try {
+      user = await auth.updateUser(user.uid, { phoneNumber: e164 });
+    } catch {
+      try {
+        const other = await auth.getUserByPhoneNumber(e164);
+        if (other.uid !== user.uid) {
+          await auth.updateUser(other.uid, { phoneNumber: null });
+          user = await auth.updateUser(user.uid, { phoneNumber: e164 });
+        }
+      } catch (err) {
+        console.warn('[auth] could not attach phone to manager auth user', err);
+      }
+    }
+  }
+
+  return user;
+}
+
+function normalizePhoneDigits(raw: string): string {
+  let pl = String(raw || '').replace(/\D/g, '');
+  if (pl.startsWith('972')) pl = `0${pl.slice(3)}`;
+  if (pl.length === 9 && pl.startsWith('5')) pl = `0${pl}`;
+  return pl;
+}
+
+/**
+ * כותב פרופיל קנוני ב־users/{uid} ומוחק כפילויות לפי אימייל/טלפון.
+ */
+export async function writeCanonicalClubUser(params: {
+  uid: string;
+  email: string;
+  name: string;
+  role: 'SYSTEM_ADMIN' | 'MANAGER';
+  phone?: string | null;
+  picture?: string | null;
+  createdAt?: string;
+}): Promise<void> {
+  const { getFirestore } = await import('firebase-admin/firestore');
+  const col = getFirestore().collection('clubs').doc(getClubIdServer()).collection('users');
+  const now = new Date().toISOString();
+  const email = params.email.trim().toLowerCase();
+  const phone = params.phone || null;
+
+  await col.doc(params.uid).set(
+    {
+      id: params.uid,
+      email,
+      name: params.name,
+      picture: params.picture || null,
+      phone,
+      role: params.role,
+      lastLoginAt: now,
+      createdAt: params.createdAt || now,
+    },
+    { merge: true }
+  );
+
+  const snap = await col.get();
+  const phoneNorm = phone ? normalizePhoneDigits(phone) : '';
+  for (const doc of snap.docs) {
+    if (doc.id === params.uid) continue;
+    const data = doc.data();
+    const docEmail = String(data.email || '')
+      .trim()
+      .toLowerCase();
+    const docPhone = normalizePhoneDigits(String(data.phone || ''));
+    const sameEmail = Boolean(email) && docEmail === email;
+    const samePhone = Boolean(phoneNorm) && docPhone === phoneNorm;
+    const syntheticDup =
+      samePhone &&
+      (isSyntheticSmsEmail(docEmail) || isSyntheticSmsEmail(email) || sameEmail);
+    if (sameEmail || syntheticDup) {
+      await doc.ref.delete().catch((err) => {
+        console.warn('[auth] failed deleting duplicate user doc', doc.id, err);
+      });
+    }
+  }
+}
